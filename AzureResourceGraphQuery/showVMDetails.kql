@@ -1,12 +1,13 @@
-// Show
-// vmName,subscriptionType,vmStatus,privateIp,publicIpAddress,subscriptionName,resourceGroup,location,resourceId,subscriptionId
-
-
 resources
 | where type =~ 'microsoft.compute/virtualmachines'
 | extend vmId = tolower(id)
 | extend VMSize=properties.hardwareProfile.vmSize, OSType=properties.storageProfile.osDisk.osType,vmID=properties.hardware,resourceId = id
-| project vmId,resourceId, vmName = name, resourceGroup, subscriptionId, location
+| extend vmStatus = tostring(properties.extended.instanceView.powerState.displayStatus)
+| extend vmStatus = case(
+        tolower(vmStatus) == "vm running", "Running",
+        tolower(vmStatus) in ("vm stopped", "vm deallocated"), "Stopped",
+        vmStatus)
+| project vmId,resourceId, vmName = name, resourceGroup, subscriptionId, location,vmStatus
 | join kind=leftouter (
     resources
     | where type =~ 'microsoft.network/networkinterfaces'
@@ -31,7 +32,8 @@ resources
     resourceGroup,
     location,
     privateIp,
-    publicIpAddress
+    publicIpAddress,
+    vmStatus
 | join kind=leftouter (
     resourcecontainers
     | where type =~ 'microsoft.resources/subscriptions'
@@ -47,10 +49,11 @@ resources
 )
 | project 
     vmName,
+    subscriptionType,
+    vmStatus,
     privateIp,
     publicIpAddress,
     subscriptionName,
-    subscriptionType,
     resourceGroup,
     location,
     resourceId,
